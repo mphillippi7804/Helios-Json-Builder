@@ -6,10 +6,7 @@ import os
 import re
 import sys
 
-
-#Parser development commented out lines 1905, 1922, 3034
-
-
+#Parser development commented out line 1905, 1922, 3034
 # Name of the window/taskbar icon, expected to sit next to this script.
 APP_ICON_FILE = "Helios.ico"
 
@@ -42,7 +39,7 @@ def strip_private_fields(value):
 try:
     from parser_engine import _prettify_device as _core_prettify_device
 except Exception:
-    _core_prettify_device = Nonez
+    _core_prettify_device = None
 
 
 def prettify_label(text):
@@ -57,7 +54,7 @@ def prettify_label(text):
     return leaf.replace("_", " ")
 
 
-# â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Constants ──────────────────────────────────────────────────────────────────
 DCS_LEADER = "DCS.Common."
 
 HELIOS_TYPES = [
@@ -139,7 +136,7 @@ _OPTIONAL_ID_CHECKS_BY_TYPE = {
         ("deviceId", "Device ID"), ("switch_actionId", "Action ID")],
 }
 
-# â”€â”€ Theming â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Theming ─────────────────────────────────────────────────────────────────────
 # Two full colour palettes. apply_theme() copies a palette into the module-level
 # colour names below; every widget reads those names at build time, so switching
 # themes is a matter of re-applying a palette and rebuilding the UI.
@@ -251,7 +248,7 @@ def make_blank_entry(helios_type):
     return base
 
 
-# â”€â”€ Utility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Utility ────────────────────────────────────────────────────────────────────
 def first_export(entry):
     """Return the entry's first export dict, or {} when it has none.
 
@@ -338,7 +335,7 @@ def int_sort_value(value, missing=float("inf")):
     return missing
 
 
-# â”€â”€ Helios type conversion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Helios type conversion ──────────────────────────────────────────────────────
 # Several helios types store a "primary" DCS device id, but in different places.
 # When the user changes a function's type we keep that device id (along with the
 # common device/name/description/export-id fields) and reset everything else to
@@ -519,8 +516,8 @@ def device_action_sort_key(entry):
     """Sort key used for saving, the Full View, and the in-memory order after
     every add / load / import.
 
-    Entries that have *neither* a device id nor an action id â€” the display
-    values such as NetworkValue / FlagValue / ScaledNetworkValue / Text â€” are
+    Entries that have *neither* a device id nor an action id — the display
+    values such as NetworkValue / FlagValue / ScaledNetworkValue / Text — are
     ordered first, alphabetically by device name and then by name.
 
     Entries that have a device id and/or action id are ordered after those
@@ -632,7 +629,7 @@ def duplicate_selected(editor, helios_type):
         return
     if len(selection) > 1:
         messagebox.showinfo("Select One",
-                            "Duplicate Selected works on a single row â€” select just one.",
+                            "Duplicate Selected works on a single row — select just one.",
                             parent=editor)
         return
     item_id = selection[0]
@@ -769,7 +766,7 @@ def _equal_values(first, second):
 
 def arg_min_max_match(entry):
     """True when an entry defines both argumentMin and argumentMax and the two
-    hold the same value â€” meaning no range of travel. Checked for every function
+    hold the same value — meaning no range of travel. Checked for every function
     regardless of helios type (Axis, AbsoluteEncoder, the VHF encoders, ...),
     since argumentMin/argumentMax are the schema's universal range bounds."""
     if "argumentMin" not in entry or "argumentMax" not in entry:
@@ -932,7 +929,7 @@ def cast_strings_to_numbers(value):
     return value
 
 
-# â”€â”€ Dialog base â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Dialog base ────────────────────────────────────────────────────────────────
 class EntryDialog(tk.Toplevel):
     def __init__(self, parent, title, helios_type, existing=None, functions=None, edit_index=None):
         super().__init__(parent)
@@ -971,7 +968,7 @@ class EntryDialog(tk.Toplevel):
         win_w, win_h = min(req_w + 40, 900), min(req_h + 40, 700)
         self.geometry(f"{win_w}x{win_h}+{(screen_w - win_w) // 2}+{(screen_h - win_h) // 2}")
 
-    # â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── helpers ──────────────────────────────────────────────────────────────
     def _frame(self, parent, **kwargs):
         return tk.Frame(parent, bg=DARK_BG, **kwargs)
 
@@ -994,7 +991,7 @@ class EntryDialog(tk.Toplevel):
         self._vars[key] = var
         return row_index + 1
 
-    # â”€â”€ build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── build ─────────────────────────────────────────────────────────────────
     def _section(self, parent, text, row):
         """Render a section header + divider; returns the next free grid row."""
         tk.Label(parent, text=text, bg=DARK_BG, fg=ACCENT, font=FONT_HEAD
@@ -1067,7 +1064,7 @@ class EntryDialog(tk.Toplevel):
                              font=FONT_MONO, anchor="w")
         unit_text.grid(row=0, column=0, sticky="ew", padx=(4, 0), pady=2)
 
-        unit_arrow = tk.Label(unit_button, text="â–¼", bg=MID_BG, fg=TEXT_HEAD,
+        unit_arrow = tk.Label(unit_button, text="▼", bg=MID_BG, fg=TEXT_HEAD,
                               font=FONT_UI, anchor="e")
         unit_arrow.grid(row=0, column=1, sticky="e", padx=(0, 4), pady=2)
 
@@ -1128,7 +1125,7 @@ class EntryDialog(tk.Toplevel):
         row += 1
 
         row = self._section(inner, "Calibration Points", row)
-        self._label(inner, "Point Count (â‰¥2)").grid(row=row, column=0, sticky="w", padx=(8, 4), pady=3)
+        self._label(inner, "Point Count (≥2)").grid(row=row, column=0, sticky="w", padx=(8, 4), pady=3)
         point_count_entry = self._entry(inner, width=8)
         point_count_entry.configure(textvariable=self._pt_count_var)
         point_count_entry.grid(row=row, column=1, sticky="w", padx=(0, 8), pady=3)
@@ -1140,7 +1137,7 @@ class EntryDialog(tk.Toplevel):
             if existing_points:
                 self._pt_count_var.set(len(existing_points))
 
-        tk.Button(inner, text="â‡…  Swap Point Values", bg=ACCENT2, fg=DARK_BG,
+        tk.Button(inner, text="⇅  Swap Point Values", bg=ACCENT2, fg=DARK_BG,
                   font=FONT_UI, relief="flat", padx=10, pady=3, cursor="hand2",
                   command=self._swap_cal_points).grid(
                       row=row, column=0, columnspan=2, sticky="w", padx=8, pady=(2, 4))
@@ -1202,7 +1199,7 @@ class EntryDialog(tk.Toplevel):
         max_entry.grid(row=row, column=1, sticky="w", padx=(0, 8), pady=3)
         row += 1
 
-        self._label(inner, "Position Count (â‰¥2)").grid(row=row, column=0, sticky="w", padx=(8, 4), pady=3)
+        self._label(inner, "Position Count (≥2)").grid(row=row, column=0, sticky="w", padx=(8, 4), pady=3)
         count_entry = self._entry(inner, width=8)
         count_entry.configure(textvariable=self._pos_count_var)
         count_entry.grid(row=row, column=1, sticky="w", padx=(0, 8), pady=3)
@@ -1221,7 +1218,7 @@ class EntryDialog(tk.Toplevel):
         except (ValueError, TypeError):
             first_value, last_value = 0.0, 1.0
         # Keep the Min/Max bounds ascending and record whether the stored values
-        # run highâ†’low (a previously swapped switch).
+        # run high→low (a previously swapped switch).
         self._pos_reversed = first_value > last_value
         self._min_var.set(min(first_value, last_value))
         self._max_var.set(max(first_value, last_value))
@@ -1237,7 +1234,7 @@ class EntryDialog(tk.Toplevel):
 
     def _build_switch_positions(self, inner, existing, row):
         row = self._section(inner, "Positions", row)
-        tk.Button(inner, text="â‡…  Swap Position Values", bg=ACCENT2, fg=DARK_BG,
+        tk.Button(inner, text="⇅  Swap Position Values", bg=ACCENT2, fg=DARK_BG,
                   font=FONT_UI, relief="flat", padx=10, pady=3, cursor="hand2",
                   command=self._swap_positions).grid(
                       row=row, column=0, columnspan=2, sticky="w", padx=8, pady=(2, 4))
@@ -1260,10 +1257,10 @@ class EntryDialog(tk.Toplevel):
     def _build_dialog_buttons(self):
         button_row = tk.Frame(self, bg=DARK_BG)
         button_row.pack(fill="x", padx=12, pady=(0, 12))
-        tk.Button(button_row, text="âœ“  Save Entry", bg=ACCENT, fg=DARK_BG, font=FONT_HEAD,
+        tk.Button(button_row, text="✓  Save Entry", bg=ACCENT, fg=DARK_BG, font=FONT_HEAD,
                   relief="flat", padx=16, pady=6, cursor="hand2",
                   command=self._save).pack(side="right", padx=(4, 0))
-        tk.Button(button_row, text="âœ•  Cancel", bg=MID_BG, fg=TEXT_SEC, font=FONT_UI,
+        tk.Button(button_row, text="✕  Cancel", bg=MID_BG, fg=TEXT_SEC, font=FONT_UI,
                   relief="flat", padx=16, pady=6, cursor="hand2",
                   command=self.destroy).pack(side="right")
 
@@ -1501,7 +1498,7 @@ class EntryDialog(tk.Toplevel):
 
     def _find_entry_collisions(self, entry):
         """Every existing function the entry-to-be-saved would collide with, and
-        why â€” matching the Collisions tab rules: a shared Export ID(Arg), a shared
+        why — matching the Collisions tab rules: a shared Export ID(Arg), a shared
         Device ID + Action ID, or a shared Device + Name (both must match).
         Returns a list of (other_function, [reason, ...])."""
         new_export = str(first_export(entry).get("id", "")).strip()
@@ -1524,7 +1521,7 @@ class EntryDialog(tk.Toplevel):
             if new_name \
                     and str(other.get("device", "")).strip() == new_device \
                     and str(other.get("name", "")).strip() == new_name:
-                reasons.append(f"Device + Name '{new_device} Â· {new_name}'")
+                reasons.append(f"Device + Name '{new_device} · {new_name}'")
             if reasons:
                 collisions.append((other, reasons))
         return collisions
@@ -1532,17 +1529,17 @@ class EntryDialog(tk.Toplevel):
     def _confirm_collisions(self, collisions):
         """Tell the user exactly what this entry collides with (and why) before it
         lands on the Collisions tab; return True to add it anyway."""
-        lines = ["Heads up â€” this entry will be listed on the Collisions tab.",
+        lines = ["Heads up — this entry will be listed on the Collisions tab.",
                  "", "It collides with:"]
         for other, reasons in collisions[:12]:
             other_type = TAB_LABELS.get(other.get("heliosType", ""),
                                         other.get("heliosType", "").split(".")[-1])
-            label = " Â· ".join(part for part in
+            label = " · ".join(part for part in
                                (str(other.get("device", "")).strip(),
                                 str(other.get("name", "")).strip()) if part) or "(unnamed)"
-            lines.append(f"  â€¢ {label} ({other_type}) â€” shares {'; '.join(reasons)}")
+            lines.append(f"  • {label} ({other_type}) — shares {'; '.join(reasons)}")
         if len(collisions) > 12:
-            lines.append(f"  â€¦and {len(collisions) - 12} more.")
+            lines.append(f"  …and {len(collisions) - 12} more.")
         lines += ["", "Collisions are allowed but flagged for review.",
                   "", "Add this entry anyway?"]
         return messagebox.askyesno("Collision Detected", "\n".join(lines), parent=self)
@@ -1628,8 +1625,8 @@ class EntryDialog(tk.Toplevel):
         entry["exports"][0]["id"] = to_int(export_id)
         self._populate_entry_fields(helios_type, entry, values)
 
-        # Alert on anything that would put this entry on the Collisions tab â€”
-        # a shared Export ID(Arg), Device ID + Action ID, or Name â€” naming each
+        # Alert on anything that would put this entry on the Collisions tab —
+        # a shared Export ID(Arg), Device ID + Action ID, or Name — naming each
         # colliding function and the cause. Collisions are allowed, so the user
         # can proceed or cancel.
         collisions = self._find_entry_collisions(entry)
@@ -1640,7 +1637,7 @@ class EntryDialog(tk.Toplevel):
         self.destroy()
 
 
-# â”€â”€ Change-type dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Change-type dialog ──────────────────────────────────────────────────────────
 class ChangeTypeDialog(tk.Toplevel):
     """Small dialog to pick a new helios type for an existing function.
     Sets self.result to the chosen full helios type string (e.g.
@@ -1698,7 +1695,7 @@ class ChangeTypeDialog(tk.Toplevel):
 
         note = ("Keeps device, name, description and Export ID(Arg) (plus the device "
                 "ID where it maps).\nAll other type-specific fields reset to the "
-                "new type's defaults â€” open\nthe entry with Edit afterwards to "
+                "new type's defaults — open\nthe entry with Edit afterwards to "
                 "fill them in.")
         tk.Label(outer, text=note, bg=DARK_BG, fg=TEXT_SEC, font=FONT_UI,
                  justify="left").grid(row=6, column=0, columnspan=2,
@@ -1706,10 +1703,10 @@ class ChangeTypeDialog(tk.Toplevel):
 
         button_row = tk.Frame(self, bg=DARK_BG)
         button_row.pack(fill="x", padx=18, pady=(0, 14))
-        tk.Button(button_row, text="âœ“  Change Type", bg=ACCENT, fg=DARK_BG,
+        tk.Button(button_row, text="✓  Change Type", bg=ACCENT, fg=DARK_BG,
                   font=FONT_HEAD, relief="flat", padx=16, pady=6, cursor="hand2",
                   command=self._confirm).pack(side="right", padx=(4, 0))
-        tk.Button(button_row, text="âœ•  Cancel", bg=MID_BG, fg=TEXT_SEC, font=FONT_UI,
+        tk.Button(button_row, text="✕  Cancel", bg=MID_BG, fg=TEXT_SEC, font=FONT_UI,
                   relief="flat", padx=16, pady=6, cursor="hand2",
                   command=self.destroy).pack(side="right")
 
@@ -1732,7 +1729,7 @@ class ChangeTypeDialog(tk.Toplevel):
         self.destroy()
 
 
-# â”€â”€ Column definitions per type â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Column definitions per type ────────────────────────────────────────────────
 def get_columns(helios_type):
     base = [("id", "Export ID(Arg)", 60), ("device", "Device", 100),
             ("name", "Name", 120), ("description", "Description", 180)]
@@ -1802,11 +1799,11 @@ def flatten_entry(entry):
     return flat
 
 
-# â”€â”€ Main App â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Main App ───────────────────────────────────────────────────────────────────
 class HeliosEditor(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Json Interface Viewer and Editor")
+        self.title("Helios Json Viewer and Editor")
         self._set_window_icon()
         self.configure(bg=DARK_BG)
 
@@ -1851,12 +1848,12 @@ class HeliosEditor(tk.Tk):
         self._refresh_all()
 
         # Closing the window (the X button) goes through the same unsaved-change
-        # prompt as File â–¸ Exit.
+        # prompt as File ▸ Exit.
         self.protocol("WM_DELETE_WINDOW", self._on_exit)
         # The freshly-opened, empty profile is the initial clean baseline.
         self._mark_clean()
 
-    # â”€â”€ window icon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── window icon ──────────────────────────────────────────────────────────────
     def _set_window_icon(self):
         """Use Helios.ico for the title bar / taskbar instead of the default Tk
         feather. `default=` applies it to this window and every dialog opened
@@ -1873,7 +1870,7 @@ class HeliosEditor(tk.Tk):
             except Exception:
                 pass
 
-    # â”€â”€ styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── styles ─────────────────────────────────────────────────────────────────
     def _setup_styles(self):
         style = ttk.Style(self)
         style.theme_use("clam")
@@ -1893,7 +1890,7 @@ class HeliosEditor(tk.Tk):
         style.configure("Vertical.TScrollbar", background=MID_BG, troughcolor=DARK_BG,
                         arrowcolor=TEXT_SEC, borderwidth=0)
 
-    # â”€â”€ menu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── menu ───────────────────────────────────────────────────────────────────
     def _build_menu(self):
         menu_bar = tk.Menu(self, bg=MID_BG, fg=TEXT_PRI, activebackground=ACCENT,
                            activeforeground=DARK_BG, relief="flat", font=FONT_UI)
@@ -1902,14 +1899,13 @@ class HeliosEditor(tk.Tk):
                             activebackground=ACCENT, activeforeground=DARK_BG, font=FONT_UI)
         menu_bar.add_cascade(label="File", menu=file_menu)
         file_menu.add_command(label="New",        command=self._new,    accelerator="Ctrl+N")
-        file_menu.add_command(label="Openâ€¦",      command=self._open,   accelerator="Ctrl+O")
+        file_menu.add_command(label="Open…",      command=self._open,   accelerator="Ctrl+O")
         file_menu.add_command(label="Save",       command=self._save,   accelerator="Ctrl+S")
-        file_menu.add_command(label="Save Asâ€¦",   command=self._save_as)
-        # To remain for future develop
+        file_menu.add_command(label="Save As…",   command=self._save_as)
         # file_menu.add_separator()
-        # Import moved into the File menu and renamed; it now searches the chosen
-        # cockpit folder and all of its subfolders for the clickabledata file.
-        # file_menu.add_command(label="Import DCS Cockpit folderâ€¦",
+        # # Import moved into the File menu and renamed; it now searches the chosen
+        # # cockpit folder and all of its subfolders for the clickabledata file.
+        # file_menu.add_command(label="Import DCS Cockpit folder…",
         #                       command=self._import_dcs_folder,
         #                       accelerator="Ctrl+I")
         file_menu.add_separator()
@@ -1924,7 +1920,7 @@ class HeliosEditor(tk.Tk):
         self.bind_all("<Control-s>", lambda event: self._save())
         # self.bind_all("<Control-i>", lambda event: self._import_dcs_folder())
 
-    # â”€â”€ theme switching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── theme switching ─────────────────────────────────────────────────────────
     def _toggle_theme(self):
         self._set_theme("light" if self._theme_name == "dark" else "dark")
 
@@ -1960,13 +1956,13 @@ class HeliosEditor(tk.Tk):
         except Exception:
             pass
 
-    # â”€â”€ header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── header ─────────────────────────────────────────────────────────────────
     def _build_header(self):
         header = tk.Frame(self, bg=PANEL_BG, pady=10)
         header.pack(fill="x", padx=0, pady=0)
         self._header_frame = header
 
-        tk.Label(header, text="JSON INTERFACE VIEWER AND EDITOR", bg=PANEL_BG, fg=ACCENT,
+        tk.Label(header, text="HELIOS JSON VIEWER AND EDITOR", bg=PANEL_BG, fg=ACCENT,
                  font=("Segoe UI", 13, "bold")).grid(row=0, column=0, columnspan=14,
                                                      sticky="w", padx=16, pady=(0, 8))
 
@@ -2020,11 +2016,11 @@ class HeliosEditor(tk.Tk):
         for key in ("type", "module"):
             self._hdr_vars[key].trace_add("write", self._update_name)
 
-        # Search strip â€” find a function by name/device/id and jump to its tab.
+        # Search strip — find a function by name/device/id and jump to its tab.
         search_frame = tk.Frame(header, bg=PANEL_BG)
         search_frame.grid(row=3, column=0, columnspan=15, sticky="w", padx=12, pady=(8, 0))
 
-        tk.Label(search_frame, text="ðŸ”  Search", bg=PANEL_BG, fg=TEXT_SEC,
+        tk.Label(search_frame, text="🔍  Search", bg=PANEL_BG, fg=TEXT_SEC,
                  font=FONT_UI).pack(side="left", padx=(0, 6))
 
         self._search_var = tk.StringVar()
@@ -2048,20 +2044,20 @@ class HeliosEditor(tk.Tk):
 
         # Global action: stamp a standard description onto every function based
         # on its helios type (ScaledNetworkValue is intentionally left blank).
-        tk.Button(search_frame, text="ðŸ·  Set Descriptions", bg=ACCENT2, fg=DARK_BG,
+        tk.Button(search_frame, text="🏷  Set Descriptions", bg=ACCENT2, fg=DARK_BG,
                   font=FONT_HEAD, relief="flat", padx=14, pady=3, cursor="hand2",
                   command=self._apply_descriptions).pack(side="left", padx=(24, 0))
 
         # Global action: give every device that has no Export ID(Arg) the next free id,
         # counting up from the highest id currently in use.
-        tk.Button(search_frame, text="ðŸ”¢  Auto-fill Id's", bg=ACCENT, fg=DARK_BG,
+        tk.Button(search_frame, text="🔢  Auto-fill Id's", bg=ACCENT, fg=DARK_BG,
                   font=FONT_HEAD, relief="flat", padx=14, pady=3, cursor="hand2",
                   command=self._auto_fill_ids).pack(side="left", padx=(10, 0))
 
         # Populate
         self._hdr_vars["source"].set(self._data.get("source", "User"))
 
-    # â”€â”€ search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── search ─────────────────────────────────────────────────────────────────
     def _function_matches_query(self, function, query):
         """True when `query` (already lowercased) appears in any searchable
         field of `function`: name, device, description, export id, the
@@ -2102,7 +2098,7 @@ class HeliosEditor(tk.Tk):
             self._search_status.configure(text="No matches", fg=ERROR)
             return
 
-        # Same query as last time â†’ advance to the next match; otherwise restart.
+        # Same query as last time → advance to the next match; otherwise restart.
         if query == self._search_last_query and matches == self._search_matches:
             self._search_pos = (self._search_pos + 1) % len(matches)
         else:
@@ -2144,7 +2140,7 @@ class HeliosEditor(tk.Tk):
         highest = max_id(self._data.get("functions", []))
         self._max_id_lbl.configure(text=str(highest))
 
-    # â”€â”€ tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── tabs ───────────────────────────────────────────────────────────────────
     def _build_tabs(self):
         self._nb = ttk.Notebook(self)
         self._nb.pack(fill="both", expand=True, padx=0, pady=0)
@@ -2186,7 +2182,7 @@ class HeliosEditor(tk.Tk):
                  text="Functions with a configuration problem "
                       "(see the Issue column for the reason)",
                  bg=PANEL_BG, fg=TEXT_HEAD, font=FONT_HEAD).pack(side="left")
-        tk.Button(toolbar, text="âŸ³  Refresh", bg=ACCENT, fg=DARK_BG, font=FONT_UI,
+        tk.Button(toolbar, text="⟳  Refresh", bg=ACCENT, fg=DARK_BG, font=FONT_UI,
                   relief="flat", padx=12, pady=4, cursor="hand2",
                   command=self._refresh_validation).pack(side="left", padx=(12, 0))
         self._validation_count_lbl = tk.Label(toolbar, text="", bg=PANEL_BG,
@@ -2267,7 +2263,7 @@ class HeliosEditor(tk.Tk):
         tk.Label(toolbar,
                  text="Functions sharing an Export ID(Arg), a Device ID + Action ID, or a Device + Name",
                  bg=PANEL_BG, fg=TEXT_HEAD, font=FONT_HEAD).pack(side="left")
-        tk.Button(toolbar, text="âŸ³  Refresh", bg=ACCENT, fg=DARK_BG, font=FONT_UI,
+        tk.Button(toolbar, text="⟳  Refresh", bg=ACCENT, fg=DARK_BG, font=FONT_UI,
                   relief="flat", padx=12, pady=4, cursor="hand2",
                   command=self._refresh_collisions).pack(side="left", padx=(12, 0))
         self._collision_count_lbl = tk.Label(toolbar, text="", bg=PANEL_BG,
@@ -2298,7 +2294,7 @@ class HeliosEditor(tk.Tk):
                                      entry.get("heliosType", "").split(".")[-1])
         device_id = get_primary_device_id(entry)
         action_id = get_primary_action_id(entry)
-        function = " Â· ".join(part for part in (str(entry.get("device", "")).strip(),
+        function = " · ".join(part for part in (str(entry.get("device", "")).strip(),
                                                 str(entry.get("name", "")).strip()) if part)
         return [str(export_id), name, str(device_type), str(device_id),
                 str(action_id), function]
@@ -2342,7 +2338,7 @@ class HeliosEditor(tk.Tk):
                 functions, HeliosEditor._export_key).items():
             if len(members) > 1:
                 groups.append({
-                    "label": f"âš   Shared Export ID(Arg): {export_id}   ({len(members)} functions)",
+                    "label": f"⚠  Shared Export ID(Arg): {export_id}   ({len(members)} functions)",
                     "entries": members,
                     "highlight": {0},          # ID column
                 })
@@ -2350,7 +2346,7 @@ class HeliosEditor(tk.Tk):
                 functions, HeliosEditor._dev_action_key).items():
             if len(members) > 1:
                 groups.append({
-                    "label": (f"âš   Shared Device ID + Action ID: "
+                    "label": (f"⚠  Shared Device ID + Action ID: "
                               f"{device_id} / {action_id}   ({len(members)} functions)"),
                     "entries": members,
                     "highlight": {3, 4},       # DeviceID + ActionID columns
@@ -2358,9 +2354,9 @@ class HeliosEditor(tk.Tk):
         for (device, name), members in HeliosEditor._group_by(
                 functions, HeliosEditor._name_key).items():
             if len(members) > 1:
-                shared = " Â· ".join(part for part in (device, name) if part)
+                shared = " · ".join(part for part in (device, name) if part)
                 groups.append({
-                    "label": (f"âš   Shared Device + Name: {shared}   "
+                    "label": (f"⚠  Shared Device + Name: {shared}   "
                               f"({len(members)} functions)"),
                     "entries": members,
                     "highlight": {1},          # Name column
@@ -2398,7 +2394,7 @@ class HeliosEditor(tk.Tk):
         return grid_row
 
     def _show_no_collisions(self, inner, header_count):
-        tk.Label(inner, text="âœ“  No collisions found.", bg=PANEL_BG, fg=SUCCESS,
+        tk.Label(inner, text="✓  No collisions found.", bg=PANEL_BG, fg=SUCCESS,
                  font=FONT_UI, anchor="w", padx=8, pady=8).grid(
                      row=1, column=0, columnspan=header_count, sticky="w")
         self._collision_count_lbl.configure(text="0 collisions")
@@ -2430,7 +2426,7 @@ class HeliosEditor(tk.Tk):
         toolbar.pack(fill="x", padx=8)
         tk.Label(toolbar, text="All devices in save-file format (read-only)",
                  bg=PANEL_BG, fg=TEXT_HEAD, font=FONT_HEAD).pack(side="left")
-        tk.Button(toolbar, text="âŸ³  Refresh", bg=ACCENT, fg=DARK_BG, font=FONT_UI,
+        tk.Button(toolbar, text="⟳  Refresh", bg=ACCENT, fg=DARK_BG, font=FONT_UI,
                   relief="flat", padx=12, pady=4, cursor="hand2",
                   command=self._refresh_full_view).pack(side="left", padx=(12, 0))
 
@@ -2443,7 +2439,7 @@ class HeliosEditor(tk.Tk):
             self._set_sort_method(self._sort_method_var.get())
 
         short_labels = {"deviceaction": "Device ID + Action ID",
-                        "devicename": "Device Name + Name (Aâ†’Z)"}
+                        "devicename": "Device Name + Name (A→Z)"}
         for key in SORT_METHODS:
             tk.Radiobutton(toolbar, text=short_labels.get(key, key),
                            variable=self._sort_method_var, value=key, command=on_toggle,
@@ -2489,22 +2485,22 @@ class HeliosEditor(tk.Tk):
         toolbar = tk.Frame(frame, bg=PANEL_BG, pady=6)
         toolbar.pack(fill="x", padx=8)
 
-        tk.Button(toolbar, text="ï¼‹  Add Entry", bg=ACCENT, fg=DARK_BG, font=FONT_HEAD,
+        tk.Button(toolbar, text="＋  Add Entry", bg=ACCENT, fg=DARK_BG, font=FONT_HEAD,
                   relief="flat", padx=12, pady=4, cursor="hand2",
                   command=lambda h=helios_type: self._add_entry(h)).pack(side="left", padx=(0, 6))
-        tk.Button(toolbar, text="âœŽ  Edit", bg=MID_BG, fg=TEXT_PRI, font=FONT_UI,
+        tk.Button(toolbar, text="✎  Edit", bg=MID_BG, fg=TEXT_PRI, font=FONT_UI,
               relief="flat", padx=12, pady=4, cursor="hand2",
               command=lambda h=helios_type: self._edit_entry(h)).pack(side="left", padx=(0, 6))
-        tk.Button(toolbar, text="âŽ˜  Duplicate Last  â˜…", bg=MID_BG, fg=TEXT_PRI, font=FONT_UI,
+        tk.Button(toolbar, text="⎘  Duplicate Last  ★", bg=MID_BG, fg=TEXT_PRI, font=FONT_UI,
               relief="flat", padx=12, pady=4, cursor="hand2",
               activeforeground=TEXT_PRI, command=lambda h=helios_type: duplicate_last(self, h)).pack(side="left", padx=(0, 6))
-        tk.Button(toolbar, text="âŽ˜  Duplicate Selected", bg=MID_BG, fg=TEXT_PRI, font=FONT_UI,
+        tk.Button(toolbar, text="⎘  Duplicate Selected", bg=MID_BG, fg=TEXT_PRI, font=FONT_UI,
               relief="flat", padx=12, pady=4, cursor="hand2",
               command=lambda h=helios_type: duplicate_selected(self, h)).pack(side="left", padx=(0, 6))
-        tk.Button(toolbar, text="âœ•  Delete", bg=DANGER_BG, fg=DANGER_FG, font=FONT_UI,
+        tk.Button(toolbar, text="✕  Delete", bg=DANGER_BG, fg=DANGER_FG, font=FONT_UI,
                   relief="flat", padx=12, pady=4, cursor="hand2",
                   command=lambda h=helios_type: self._delete_entry(h)).pack(side="left", padx=(0, 6))
-        tk.Button(toolbar, text="â‡„  Change Type", bg=MID_BG, fg=ACCENT2, font=FONT_UI,
+        tk.Button(toolbar, text="⇄  Change Type", bg=MID_BG, fg=ACCENT2, font=FONT_UI,
                   relief="flat", padx=12, pady=4, cursor="hand2",
                   command=lambda h=helios_type: self._change_type(h)).pack(side="left", padx=(0, 6))
 
@@ -2557,7 +2553,7 @@ class HeliosEditor(tk.Tk):
 
         self._trees[helios_type] = tree
 
-    # â”€â”€ data ops â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── data ops ───────────────────────────────────────────────────────────────
     def _entries_for(self, helios_type):
         return [(index, function) for index, function in enumerate(self._data["functions"])
                 if function.get("heliosType") == helios_type]
@@ -2640,7 +2636,7 @@ class HeliosEditor(tk.Tk):
             seed = make_blank_entry(helios_type)
             seed["device"] = self._last_added_device
             set_primary_device_id(seed, self._last_added_device_id)
-        dialog = EntryDialog(self, f"Add â€” {TAB_LABELS[helios_type]}", helios_type,
+        dialog = EntryDialog(self, f"Add — {TAB_LABELS[helios_type]}", helios_type,
                              existing=seed, functions=self._data["functions"])
         self.wait_window(dialog)
         if dialog.result:
@@ -2666,7 +2662,7 @@ class HeliosEditor(tk.Tk):
             return
         if len(selection) > 1:
             messagebox.showinfo("Select One",
-                                "Edit works on a single row â€” select just one.\n"
+                                "Edit works on a single row — select just one.\n"
                                 "(Use Change Type to retype several at once.)",
                                 parent=self)
             return
@@ -2676,7 +2672,7 @@ class HeliosEditor(tk.Tk):
         if function_index < 0:
             return
         entry = self._data["functions"][function_index]
-        dialog = EntryDialog(self, f"Edit â€” {TAB_LABELS[helios_type]}", helios_type, existing=entry,
+        dialog = EntryDialog(self, f"Edit — {TAB_LABELS[helios_type]}", helios_type, existing=entry,
                              functions=self._data["functions"], edit_index=function_index)
         self.wait_window(dialog)
         if dialog.result:
@@ -2779,7 +2775,7 @@ class HeliosEditor(tk.Tk):
         messagebox.showinfo(
             "Type Changed",
             head + "\n\nKept: device, name, description and Export ID(Arg)" + note
-            + "Other fields were reset to defaults â€” use Edit to fill them in.",
+            + "Other fields were reset to defaults — use Edit to fill them in.",
             parent=self)
 
     def _change_type(self, helios_type):
@@ -2857,7 +2853,7 @@ class HeliosEditor(tk.Tk):
         self._sort_col[helios_type] = (column, reverse)
         self._refresh_tab(helios_type)
 
-    # â”€â”€ refresh â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── refresh ────────────────────────────────────────────────────────────────
     @staticmethod
     def _tab_sort_key(function, sort_column):
         """Sort key for a flattened entry within a type tab. ID columns sort
@@ -2884,12 +2880,12 @@ class HeliosEditor(tk.Tk):
     def _row_values(self, function, latest_entry, column_ids):
         """Build the display tuple for one grid row. Device/Name are prettified
         for display only; the stored values are left untouched, and the most
-        recently saved function gets a â˜… marker."""
+        recently saved function gets a ★ marker."""
         flat = flatten_entry(function)
         display = dict(flat)
         device_label = prettify_label(flat.get("device", ""))
         if function is latest_entry:
-            device_label = "â˜… " + device_label
+            device_label = "★ " + device_label
         display["device"] = device_label
         display["name"] = prettify_label(flat.get("name", ""))
         return tuple(display.get(column_id, "") for column_id in column_ids)
@@ -2926,7 +2922,7 @@ class HeliosEditor(tk.Tk):
         if label is not None:
             label.configure(text=str(len(self._data.get("functions", []))))
 
-    # â”€â”€ unsaved-change tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── unsaved-change tracking ──────────────────────────────────────────────────
     def _compute_state_signature(self):
         """Serialise the current profile (header + functions, private bookkeeping
         fields stripped) so it can be compared against the last clean state to
@@ -2977,7 +2973,7 @@ class HeliosEditor(tk.Tk):
         elif current == "Value Check":
             self._refresh_validation()
 
-    # â”€â”€ file ops â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── file ops ───────────────────────────────────────────────────────────────
     def _new(self):
         if not self._confirm_discard_changes(title="New File"):
             return
@@ -2997,7 +2993,7 @@ class HeliosEditor(tk.Tk):
         self._last_saved_function = None
         self._next_saved_session_index = 1
         self._next_created_session_index = 1
-        self.title("Json Interface Viewer and Editor")
+        self.title("Helios Json Viewer and Editor")
         self._sync_data_to_header()
 
     def _open(self):
@@ -3023,7 +3019,7 @@ class HeliosEditor(tk.Tk):
             self._last_added_device_id = ""
             self._last_added_function = None
             self._next_created_session_index = 1
-            self.title(f"Json Interface Viewer and Editor â€” {os.path.basename(path)}")
+            self.title(f"Helios Json Viewer and Editor — {os.path.basename(path)}")
             self._sync_data_to_header()
             # Auto-sort loaded items by device id then action id before display.
             self._sort_functions()
@@ -3033,7 +3029,7 @@ class HeliosEditor(tk.Tk):
         except Exception as error:
             messagebox.showerror("Open Failed", str(error))
 
-    # â”€â”€ DCS Lua import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── DCS Lua import ───────────────────────────────────────────────────────────
     # def _import_dcs_folder(self):
     #     """Compile a DCS Cockpit folder of clickabledata Lua (+ devices/
     #     command_defs/draw_args) into Helios functions and load them into the
@@ -3101,13 +3097,13 @@ class HeliosEditor(tk.Tk):
     def _append_warning_lines(lines, warnings):
         lines.append("")
         lines.append(f"Warnings ({len(warnings)}):")
-        lines.extend("  â€¢ " + warning for warning in warnings[:6])
+        lines.extend("  • " + warning for warning in warnings[:6])
         if len(warnings) > 6:
-            lines.append(f"  â€¦and {len(warnings) - 6} more.")
+            lines.append(f"  …and {len(warnings) - 6} more.")
         lines.append("")
         lines.append("Tip: IDs (device/action/arg) come straight from the "
                      "Lua and are reliable. Device labels, switch position "
-                     "names and axis ranges are best-effort â€” review them "
+                     "names and axis ranges are best-effort — review them "
                      "in the tabs and adjust as needed.")
 
     @staticmethod
@@ -3120,18 +3116,18 @@ class HeliosEditor(tk.Tk):
             f"Elements parsed:  {result.element_count}",
         ]
         if getattr(result, "unused_device_buttons", 0):
-            lines.append(f"Unused devices â†’  {result.unused_device_buttons} "
+            lines.append(f"Unused devices →  {result.unused_device_buttons} "
                          "added as PushButtons")
         if getattr(result, "unpaired_arg_axes", 0):
-            lines.append(f"Unpaired draw-args â†’ {result.unpaired_arg_axes} "
+            lines.append(f"Unpaired draw-args → {result.unpaired_arg_axes} "
                          "reassigned as Axes")
         if getattr(result, "unpaired_command_buttons", 0):
-            lines.append(f"Unpaired commands â†’ {result.unpaired_command_buttons} "
+            lines.append(f"Unpaired commands → {result.unpaired_command_buttons} "
                          "reassigned as PushButtons")
         if result.helper_counts:
             top = sorted(result.helper_counts.items(), key=lambda item: -item[1])[:6]
             lines.append("Top helpers: "
-                         + ", ".join(f"{helper}Ã—{count}" for helper, count in top))
+                         + ", ".join(f"{helper}×{count}" for helper, count in top))
         if result.warnings:
             HeliosEditor._append_warning_lines(lines, result.warnings)
         return lines
@@ -3178,7 +3174,7 @@ class HeliosEditor(tk.Tk):
             return
         self._current_file = path
         self._write(path)
-        self.title(f"Json Interface Viewer and Editor â€” {os.path.basename(path)}")
+        self.title(f"Helios Json Viewer and Editor — {os.path.basename(path)}")
 
     def _current_sort_key(self):
         """The sort-key function for the active save / Full View ordering."""
@@ -3199,7 +3195,7 @@ class HeliosEditor(tk.Tk):
         """Modal prompt: how should functions be ordered in the saved file?
         Returns the chosen method key, or None if the user cancels."""
         dialog = tk.Toplevel(self)
-        dialog.title("Save â€” Sort Order")
+        dialog.title("Save — Sort Order")
         dialog.configure(bg=DARK_BG)
         dialog.resizable(False, False)
         dialog.grab_set()
@@ -3222,10 +3218,10 @@ class HeliosEditor(tk.Tk):
 
         buttons = tk.Frame(dialog, bg=DARK_BG)
         buttons.pack(fill="x", padx=18, pady=(14, 16))
-        tk.Button(buttons, text="âœ“  Save", bg=ACCENT, fg=DARK_BG, font=FONT_HEAD,
+        tk.Button(buttons, text="✓  Save", bg=ACCENT, fg=DARK_BG, font=FONT_HEAD,
                   relief="flat", padx=16, pady=5, cursor="hand2",
                   command=confirm).pack(side="right", padx=(6, 0))
-        tk.Button(buttons, text="âœ•  Cancel", bg=MID_BG, fg=TEXT_SEC, font=FONT_UI,
+        tk.Button(buttons, text="✕  Cancel", bg=MID_BG, fg=TEXT_SEC, font=FONT_UI,
                   relief="flat", padx=16, pady=5, cursor="hand2",
                   command=dialog.destroy).pack(side="right")
 
@@ -3257,7 +3253,7 @@ class HeliosEditor(tk.Tk):
             normalize_special_floats(function)
 
         # Order by whichever method is active (device/action, or device-name then
-        # name) â€” the same ordering the Full View shows.
+        # name) — the same ordering the Full View shows.
         out["functions"] = sorted(out["functions"], key=self._current_sort_key())
 
         # On save, cast every numeric value to a string throughout the file.
