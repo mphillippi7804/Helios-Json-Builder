@@ -923,7 +923,7 @@ def cast_strings_to_numbers(value):
     if isinstance(value, str):
         return _string_to_number(value)
     if isinstance(value, dict):
-        return {key: cast_strings_to_numbers(item) for key, item in value.items()}
+        return {key: item if key == "name" or key == "description" or key == "device" else cast_strings_to_numbers(item) for key, item in value.items()}
     if isinstance(value, list):
         return [cast_strings_to_numbers(item) for item in value]
     return value
@@ -2863,19 +2863,23 @@ class HeliosEditor(tk.Tk):
         numerically (blank / non-numeric last); other columns sort
         case-insensitively; with no sort column, sort by device then name."""
         flat = flatten_entry(function)
-        if not sort_column:
-            return (
-                0,
-                0,
-                f"{str(flat.get('device', '')).lower()}\x00{str(flat.get('name', '')).lower()}",
-            )
-        raw = flat.get(sort_column, "")
-        if sort_column not in ID_COLUMNS:
-            return (0, 0, str(raw).lower())
-        text = str(raw).strip()
-        if text.lstrip("+-").isdigit():
-            return (0, int(text), "")
-        return (1, 0, text.lower())
+        try:
+            if not sort_column:
+                return (
+                    0,
+                    0,
+                    f"{str(flat.get('device', '')).lower()}\x00{str(flat.get('name', '')).lower()}",
+                )
+            raw = flat.get(sort_column, "")
+            if sort_column not in ID_COLUMNS:
+                return (0, 0, str(raw).lower())
+            text = str(raw).strip()
+            if text.lstrip("+-").isdigit():
+                return (0, int(text), "")
+            return (1, 0, text.lower())
+        except Exception as error:
+            messagebox.showerror("Interface Function Sort Failed", str(error), detail=flat)
+            return (1, 0, "")        
 
     def _update_tab_count(self, helios_type, count):
         count_label = self._tab_count_lbls.get(helios_type)
@@ -3014,7 +3018,10 @@ class HeliosEditor(tk.Tk):
         try:
             with open(path, "r", encoding="utf-8") as handle:
                 loaded = json.load(handle)
-            # On open, cast every numeric-looking value back to a real number.
+        except Exception as error:
+            messagebox.showerror("File Open Failed", str(error))
+        try:
+            # On open, cast most numeric-looking value back to a real number.
             loaded = cast_strings_to_numbers(loaded)
             self._data = loaded
             if "vehicles" not in self._data:
@@ -3034,9 +3041,10 @@ class HeliosEditor(tk.Tk):
             # A just-opened profile is the new clean baseline.
             self._mark_clean()
         except Exception as error:
-            messagebox.showerror("Open Failed", str(error))
+            messagebox.showerror("Post-Open Processing Failed", str(error))
 
-    # ── DCS Lua import ───────────────────────────────────────────────────────────
+    # ──
+    DCS Lua import ───────────────────────────────────────────────────────────
     # def _import_dcs_folder(self):
     #     """Compile a DCS Cockpit folder of clickabledata Lua (+ devices/
     #     command_defs/draw_args) into Helios functions and load them into the
