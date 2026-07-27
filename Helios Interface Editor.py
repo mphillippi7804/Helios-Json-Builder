@@ -1,12 +1,12 @@
-"version 1.3"
-
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+import tkinter.font as tkfont
 import json
 import copy
 import os
 import re
 import sys
+import ctypes
 
 #Parser development commented out line 1905, 1922, 3034
 # Name of the window/taskbar icon inside the app assets folder.
@@ -36,6 +36,39 @@ def strip_private_fields(value):
         return [strip_private_fields(item) for item in value]
     return value
 
+
+def normalize_scaled_for_export(function):
+    """Write ScaledNetworkValue in external format.
+
+    The editor keeps calibration helpers internally, but saved/full-view output
+    keeps only calibration.points + calibration.precision.
+    """
+    if function.get("heliosType") != DCS_LEADER + "ScaledNetworkValue":
+        return
+
+    calibration = function.get("calibration")
+    existing_points = function.pop("points", None)
+    existing_precision = function.pop("precision", None)
+
+    points = None
+    precision = existing_precision if existing_precision not in (None, "") else 5
+
+    if isinstance(calibration, dict):
+        cal_points = calibration.get("points")
+        if isinstance(cal_points, list):
+            points = copy.deepcopy(cal_points)
+        cal_precision = calibration.get("precision", precision)
+        if cal_precision not in (None, ""):
+            precision = cal_precision
+
+    if points is None and isinstance(existing_points, list):
+        points = copy.deepcopy(existing_points)
+
+    function["calibration"] = {
+        "points": points if isinstance(points, list) else [],
+        "precision": precision,
+    }
+
 # The device/name "prettifier" lives in the Lua compiler module. Import it once
 # (lazily-safe) so the editor still runs even when that file isn't present.
 try:
@@ -56,6 +89,90 @@ def prettify_label(text):
     return leaf.replace("_", " ")
 
 
+def get_monitor_workarea(window):
+    """Return monitor work-area bounds (left, top, right, bottom) for window.
+
+    On Windows this uses the monitor nearest to the supplied HWND so dialogs
+    stay on the same display as their parent window.
+    """
+    try:
+        if sys.platform.startswith("win"):
+            user32 = ctypes.windll.user32
+
+            class RECT(ctypes.Structure):
+                _fields_ = [
+                    ("left", ctypes.c_long),
+                    ("top", ctypes.c_long),
+                    ("right", ctypes.c_long),
+                    ("bottom", ctypes.c_long),
+                ]
+
+            class MONITORINFO(ctypes.Structure):
+                _fields_ = [
+                    ("cbSize", ctypes.c_ulong),
+                    ("rcMonitor", RECT),
+                    ("rcWork", RECT),
+                    ("dwFlags", ctypes.c_ulong),
+                ]
+
+            window.update_idletasks()
+            monitor = user32.MonitorFromWindow(window.winfo_id(), 2)  # nearest monitor
+            if monitor:
+                info = MONITORINFO()
+                info.cbSize = ctypes.sizeof(MONITORINFO)
+                if user32.GetMonitorInfoW(monitor, ctypes.byref(info)):
+                    work = info.rcWork
+                    return work.left, work.top, work.right, work.bottom
+    except Exception:
+        pass
+
+    # Fallback: Tk virtual-root geometry.
+    try:
+        window.update_idletasks()
+        left = int(window.winfo_vrootx())
+        top = int(window.winfo_vrooty())
+        width = int(window.winfo_vrootwidth())
+        height = int(window.winfo_vrootheight())
+        if width > 0 and height > 0:
+            return left, top, left + width, top + height
+    except Exception:
+        pass
+
+    screen_w = int(window.winfo_screenwidth())
+    screen_h = int(window.winfo_screenheight())
+    return 0, 0, screen_w, screen_h
+
+
+def clamp_rect_to_monitor(parent, x, y, width, height):
+    """Clamp a child-window rectangle into the parent's monitor work area."""
+    left, top, right, bottom = get_monitor_workarea(parent)
+    max_x = max(left, right - width)
+    max_y = max(top, bottom - height)
+    return max(left, min(x, max_x)), max(top, min(y, max_y))
+
+
+def centered_position_on_parent(parent, width, height):
+    """Center a child window over parent, then clamp to parent's monitor."""
+    try:
+        parent.update_idletasks()
+        parent_w = parent.winfo_width()
+        parent_h = parent.winfo_height()
+        parent_x = parent.winfo_rootx()
+        parent_y = parent.winfo_rooty()
+    except Exception:
+        parent_w = parent_h = 0
+        parent_x = parent_y = 0
+
+    if parent_w > 1 and parent_h > 1:
+        x = parent_x + (parent_w - width) // 2
+        y = parent_y + (parent_h - height) // 2
+    else:
+        left, top, right, bottom = get_monitor_workarea(parent)
+        x = left + ((right - left - width) // 2)
+        y = top + ((bottom - top - height) // 2)
+    return clamp_rect_to_monitor(parent, x, y, width, height)
+
+
 # ── Constants ──────────────────────────────────────────────────────────────────
 DCS_LEADER = "DCS.Common."
 
@@ -63,9 +180,9 @@ HELIOS_TYPES = [
     DCS_LEADER + "PushButton",
     DCS_LEADER + "Switch",
     DCS_LEADER + "Axis",
-    DCS_LEADER + "ScaledNetworkValue",
-    DCS_LEADER + "NetworkValue",
     DCS_LEADER + "RotaryEncoder",
+    DCS_LEADER + "NetworkValue",
+    DCS_LEADER + "ScaledNetworkValue",
     DCS_LEADER + "FlagValue",
     DCS_LEADER + "Text"
 ]
@@ -136,6 +253,17 @@ _OPTIONAL_ID_CHECKS_BY_TYPE = {
         ("dec_deviceId", "Decrement Device ID"), ("dec_actionId", "Decrement Action ID")],
     DCS_LEADER + "Switch": [
         ("deviceId", "Device ID"), ("switch_actionId", "Action ID")],
+}
+
+# Entry-save dispatch. The methods stay separate for clarity, but the lookup
+# table is shared instead of being rebuilt every time a row is saved.
+ENTRY_FIELD_SAVER_NAMES = {
+    DCS_LEADER + "PushButton": "_save_pushbutton",
+    DCS_LEADER + "Axis": "_save_axis",
+    DCS_LEADER + "NetworkValue": "_save_network",
+    DCS_LEADER + "ScaledNetworkValue": "_save_scaled",
+    DCS_LEADER + "RotaryEncoder": "_save_rotary",
+    DCS_LEADER + "Switch": "_save_switch",
 }
 
 # ── Theming ─────────────────────────────────────────────────────────────────────
@@ -227,8 +355,13 @@ def make_blank_entry(helios_type):
     elif helios_type == DCS_LEADER + "ScaledNetworkValue":
         base["exports"] = [{"format": DEFAULT_SCALED_FORMAT, "id": ""}]
         base["unit"] = "Numeric"
+        base["valueDescription"] = ""
         base["exposeunscaledvalue"] = True
         base["calibration"] = {
+            "minValue": "0.0",
+            "maxValue": "1.0",
+            "minMappedValue": "0.0",
+            "maxMappedValue": "1.0",
             "points": [{"value": "0.0", "mappedValue": "0.0"}, {"value": "1.0", "mappedValue": "1.0"}],
             "precision": 5
         }
@@ -596,7 +729,7 @@ def duplicate_last(editor, helios_type):
     """
     last_saved = find_last_saved_function(editor, helios_type)
     if last_saved is None:
-        messagebox.showinfo("No Entry", "No previous saved entry to duplicate for this tab.")
+        messagebox.showinfo("No Entry", "No previous saved entry to duplicate for this tab.", parent=editor)
         return
 
     entry = copy.deepcopy(last_saved)
@@ -925,7 +1058,11 @@ def cast_strings_to_numbers(value):
     if isinstance(value, str):
         return _string_to_number(value)
     if isinstance(value, dict):
-        return {key: cast_strings_to_numbers(item) for key, item in value.items()}
+        preserved_text_keys = {"name", "description", "valueDescription"}
+        return {
+            key: (item if key in preserved_text_keys else cast_strings_to_numbers(item))
+            for key, item in value.items()
+        }
     if isinstance(value, list):
         return [cast_strings_to_numbers(item) for item in value]
     return value
@@ -935,6 +1072,9 @@ def cast_strings_to_numbers(value):
 class EntryDialog(tk.Toplevel):
     def __init__(self, parent, title, helios_type, existing=None, functions=None, edit_index=None):
         super().__init__(parent)
+        self.withdraw()
+        self._parent = parent
+        self.transient(parent)
         self.title(title)
         self.helios_type = helios_type
         self.functions = functions or []
@@ -964,11 +1104,8 @@ class EntryDialog(tk.Toplevel):
         self._pt_rebuild_after = None
 
         self._build_ui(existing)
-        self.update_idletasks()
-        req_w, req_h = self.winfo_reqwidth(), self.winfo_reqheight()
-        screen_w, screen_h = self.winfo_screenwidth(), self.winfo_screenheight()
-        win_w, win_h = min(req_w + 40, 900), min(req_h + 40, 700)
-        self.geometry(f"{win_w}x{win_h}+{(screen_w - win_w) // 2}+{(screen_h - win_h) // 2}")
+        self._auto_fit_dialog_to_content(center_on_parent=True, force_recenter=True)
+        self.deiconify()
 
     # ── helpers ──────────────────────────────────────────────────────────────
     def _frame(self, parent, **kwargs):
@@ -992,6 +1129,88 @@ class EntryDialog(tk.Toplevel):
         entry_widget.grid(row=row_index, column=1, sticky="ew", padx=(0, 8), pady=3)
         self._vars[key] = var
         return row_index + 1
+
+    def _auto_fit_dialog_to_content(self, center_on_parent=False, force_recenter=False):
+        """Resize the dialog to fit content (grow or shrink) as dynamic rows
+        are added or removed."""
+        self.update_idletasks()
+        req_w = self._dialog_inner.winfo_reqwidth()
+        req_h = self._dialog_inner.winfo_reqheight()
+
+        # Include non-scroll content (notably the bottom action button row) in
+        # the fit budget so short dialogs still show Save/Cancel at high DPI.
+        full_req_w = self.winfo_reqwidth()
+        full_req_h = self.winfo_reqheight()
+        mon_left, mon_top, mon_right, mon_bottom = get_monitor_workarea(self._parent)
+        mon_w = max(300, mon_right - mon_left)
+        mon_h = max(300, mon_bottom - mon_top)
+
+        needed_w_visual = req_w + 80
+
+        label_font = tkfont.Font(font=FONT_UI)
+        value_font = tkfont.Font(font=FONT_MONO)
+
+        max_label_px = 0
+
+        def walk_labels(widget):
+            nonlocal max_label_px
+            if isinstance(widget, tk.Label):
+                text = widget.cget("text")
+                if text:
+                    max_label_px = max(max_label_px, label_font.measure(str(text)))
+            for child in widget.winfo_children():
+                walk_labels(child)
+
+        walk_labels(self._dialog_inner)
+
+        value_vars = list(self._vars.values())
+        value_vars += [value_var for value_var, _name_var in self._pos_vars]
+        value_vars += [name_var for _value_var, name_var in self._pos_vars]
+        value_vars += [value_var for value_var, _mapped_var in self._pt_vars]
+        value_vars += [mapped_var for _value_var, mapped_var in self._pt_vars]
+
+        max_value_px = 0
+        for var in value_vars:
+            try:
+                text = str(var.get())
+            except Exception:  # noqa
+                text = ""
+            if text:
+                max_value_px = max(max_value_px, value_font.measure(text))
+
+        # Two-column form budget: left label + gap + right entry + paddings.
+        needed_w_text = max_label_px + max_value_px + 240
+
+        needed_w = min(max(needed_w_visual, needed_w_text, full_req_w + 16), max(320, mon_w - 40))
+        needed_h = min(max(req_h + 80, full_req_h + 16), max(240, mon_h - 40))
+
+        # Keep short value dialogs comfortably tall enough that their action
+        # buttons remain visible on aggressive Windows DPI scaling.
+        min_height_by_type = {
+            DCS_LEADER + "NetworkValue": 360,
+            DCS_LEADER + "FlagValue": 360,
+        }
+        target_min_h = min_height_by_type.get(self.helios_type)
+        if target_min_h is not None:
+            needed_h = max(needed_h, min(target_min_h, max(240, mon_h - 40)))
+
+        cur_w = self.winfo_width()
+        cur_h = self.winfo_height()
+        new_w = needed_w
+        new_h = needed_h
+        if (new_w == cur_w and new_h == cur_h) and not force_recenter:
+            return
+
+        if center_on_parent or not self.winfo_ismapped():
+            try:
+                x, y = centered_position_on_parent(self._parent, new_w, new_h)
+            except Exception:  # noqa
+                x, y = mon_left, mon_top
+        else:
+            x = self.winfo_x() - (new_w - cur_w) // 2
+            y = self.winfo_y() - (new_h - cur_h) // 2
+            x, y = clamp_rect_to_monitor(self._parent, x, y, new_w, new_h)
+        self.geometry(f"{new_w}x{new_h}+{x}+{y}")
 
     # ── build ─────────────────────────────────────────────────────────────────
     def _section(self, parent, text, row):
@@ -1101,6 +1320,9 @@ class EntryDialog(tk.Toplevel):
                 )
         row += 1
 
+        row = self._row(inner, "Value Description", "valueDescription",
+                        (existing or {}).get("valueDescription", ""), row=row)
+
         self._expose_unscaled_var = tk.BooleanVar(
             value=self._coerce_bool_value((existing or {}).get("exposeunscaledvalue", True), True)
         )
@@ -1126,6 +1348,53 @@ class EntryDialog(tk.Toplevel):
         ).grid(row=row, column=1, sticky="w", padx=(0, 8), pady=3)
         row += 1
 
+        calibration = (existing or {}).get("calibration", {})
+        precision_default = calibration.get("precision", (existing or {}).get("precision", 5))
+        row = self._row(inner, "Precision", "cal_precision", precision_default, row=row)
+
+        row = self._section(inner, "Calibration Points", row)
+        range_frame = tk.Frame(inner, bg=DARK_BG)
+        range_frame.grid(row=row, column=0, columnspan=2, sticky="ew", padx=8)
+        range_frame.columnconfigure(1, weight=1)
+        range_frame.columnconfigure(3, weight=1)
+
+        self._label(range_frame, "Min Value").grid(row=0, column=0, sticky="w", padx=(0, 4), pady=3)
+        min_value_var = tk.StringVar(
+            value=self._calibration_field_default(existing, "minValue", "value", "0.0")
+        )
+        min_value_entry = self._entry(range_frame, width=10)
+        min_value_entry.configure(textvariable=min_value_var)
+        min_value_entry.grid(row=0, column=1, sticky="ew", padx=(0, 8), pady=3)
+        self._vars["cal_minValue"] = min_value_var
+
+        self._label(range_frame, "Min Mapped Value").grid(row=0, column=2, sticky="w", padx=(0, 4), pady=3)
+        min_mapped_var = tk.StringVar(
+            value=self._calibration_field_default(existing, "minMappedValue", "mappedValue", "0.0")
+        )
+        min_mapped_entry = self._entry(range_frame, width=10)
+        min_mapped_entry.configure(textvariable=min_mapped_var)
+        min_mapped_entry.grid(row=0, column=3, sticky="ew", padx=(0, 0), pady=3)
+        self._vars["cal_minMappedValue"] = min_mapped_var
+
+        self._label(range_frame, "Max Value").grid(row=1, column=0, sticky="w", padx=(0, 4), pady=3)
+        max_value_var = tk.StringVar(
+            value=self._calibration_field_default(existing, "maxValue", "value", "1.0", from_last=True)
+        )
+        max_value_entry = self._entry(range_frame, width=10)
+        max_value_entry.configure(textvariable=max_value_var)
+        max_value_entry.grid(row=1, column=1, sticky="ew", padx=(0, 8), pady=3)
+        self._vars["cal_maxValue"] = max_value_var
+
+        self._label(range_frame, "Max Mapped Value").grid(row=1, column=2, sticky="w", padx=(0, 4), pady=3)
+        max_mapped_var = tk.StringVar(
+            value=self._calibration_field_default(existing, "maxMappedValue", "mappedValue", "1.0", from_last=True)
+        )
+        max_mapped_entry = self._entry(range_frame, width=10)
+        max_mapped_entry.configure(textvariable=max_mapped_var)
+        max_mapped_entry.grid(row=1, column=3, sticky="ew", padx=(0, 0), pady=3)
+        self._vars["cal_maxMappedValue"] = max_mapped_var
+        row += 1
+
         row = self._section(inner, "Calibration Points", row)
         self._label(inner, "Point Count (≥2)").grid(row=row, column=0, sticky="w", padx=(8, 4), pady=3)
         point_count_entry = self._entry(inner, width=8)
@@ -1136,13 +1405,51 @@ class EntryDialog(tk.Toplevel):
         # Load existing point count if editing.
         if existing:
             existing_points = existing.get("calibration", {}).get("points", [])
+            if not existing_points:
+                existing_points = existing.get("points", [])
             if existing_points:
                 self._pt_count_var.set(len(existing_points))
 
-        tk.Button(inner, text="⇅  Swap Point Values", bg=ACCENT2, fg=DARK_BG,
-                  font=FONT_UI, relief="flat", padx=10, pady=3, cursor="hand2",
-                  command=self._swap_cal_points).grid(
-                      row=row, column=0, columnspan=2, sticky="w", padx=8, pady=(2, 4))
+        button_row = tk.Frame(inner, bg=DARK_BG)
+        button_row.grid(row=row, column=0, columnspan=2, sticky="ew", padx=8, pady=(2, 4))
+        button_row.columnconfigure(0, weight=1)
+        button_row.columnconfigure(4, weight=1)
+        tk.Button(
+            button_row,
+            text="↺  Arrange Values",
+            bg=ACCENT,
+            fg=DARK_BG,
+            font=FONT_UI,
+            relief="flat",
+            padx=10,
+            pady=3,
+            cursor="hand2",
+            command=self._arrange_cal_points,
+        ).grid(row=0, column=1, padx=(0, 6))
+        tk.Button(
+            button_row,
+            text="⇅  Swap Values",
+            bg=ACCENT2,
+            fg=DARK_BG,
+            font=FONT_UI,
+            relief="flat",
+            padx=10,
+            pady=3,
+            cursor="hand2",
+            command=self._swap_cal_points,
+        ).grid(row=0, column=2, padx=(0, 6))
+        tk.Button(
+            button_row,
+            text="⇅  Swap Mapped Values",
+            bg=ACCENT2,
+            fg=DARK_BG,
+            font=FONT_UI,
+            relief="flat",
+            padx=10,
+            pady=3,
+            cursor="hand2",
+            command=self._swap_cal_mapped_points,
+        ).grid(row=0, column=3, padx=(0, 6))
         row += 1
 
         self._pt_frame = tk.Frame(inner, bg=DARK_BG)
@@ -1151,6 +1458,8 @@ class EntryDialog(tk.Toplevel):
         self._pt_frame.columnconfigure(1, weight=1)
         self._pt_frame.columnconfigure(2, weight=1)
         self._build_cal_points(existing)
+        for key in ("cal_minValue", "cal_maxValue", "cal_minMappedValue", "cal_maxMappedValue"):
+            self._vars[key].trace_add("write", lambda *_: self._debounce_cal_points())
         self._pt_count_var.trace_add("write", lambda *_: self._debounce_cal_points())
         return row
 
@@ -1236,10 +1545,46 @@ class EntryDialog(tk.Toplevel):
 
     def _build_switch_positions(self, inner, existing, row):
         row = self._section(inner, "Positions", row)
-        tk.Button(inner, text="⇅  Swap Position Values", bg=ACCENT2, fg=DARK_BG,
-                  font=FONT_UI, relief="flat", padx=10, pady=3, cursor="hand2",
-                  command=self._swap_positions).grid(
-                      row=row, column=0, columnspan=2, sticky="w", padx=8, pady=(2, 4))
+        button_row = tk.Frame(inner, bg=DARK_BG)
+        button_row.grid(row=row, column=0, columnspan=2, sticky="ew", padx=8, pady=(2, 4))
+        button_row.columnconfigure(0, weight=1)
+        button_row.columnconfigure(4, weight=1)
+        tk.Button(
+            button_row,
+            text="↺  Arrange Argument Values",
+            bg=ACCENT,
+            fg=DARK_BG,
+            font=FONT_UI,
+            relief="flat",
+            padx=10,
+            pady=3,
+            cursor="hand2",
+            command=self._auto_arrange_positions,
+        ).grid(row=0, column=1, padx=(0, 6))
+        tk.Button(
+            button_row,
+            text="⇅  Swap Argument Values",
+            bg=ACCENT2,
+            fg=DARK_BG,
+            font=FONT_UI,
+            relief="flat",
+            padx=10,
+            pady=3,
+            cursor="hand2",
+            command=self._swap_positions,
+        ).grid(row=0, column=2, padx=(0, 6))
+        tk.Button(
+            button_row,
+            text="⇅  Swap Position Names",
+            bg=ACCENT2,
+            fg=DARK_BG,
+            font=FONT_UI,
+            relief="flat",
+            padx=10,
+            pady=3,
+            cursor="hand2",
+            command=self._swap_position_names,
+        ).grid(row=0, column=3, padx=(0, 6))
         row += 1
         self._pos_frame = tk.Frame(inner, bg=DARK_BG)
         self._pos_frame.grid(row=row, column=0, columnspan=2, sticky="ew", padx=8)
@@ -1277,6 +1622,7 @@ class EntryDialog(tk.Toplevel):
         canvas.pack(side="left", fill="both", expand=True)
 
         inner = tk.Frame(canvas, bg=DARK_BG)
+        self._dialog_inner = inner
         window_id = canvas.create_window((0, 0), window=inner, anchor="nw")
         inner.bind("<Configure>", lambda event: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.bind("<Configure>", lambda event: canvas.itemconfig(window_id, width=event.width))
@@ -1340,9 +1686,10 @@ class EntryDialog(tk.Toplevel):
         return prior_names
 
     def _render_position_row(self, index, arg_value, name0):
-        arg_label = tk.Label(self._pos_frame, text=format_float(arg_value), bg=MID_BG, fg=WARN,
-                             font=FONT_MONO, width=16, anchor="w", relief="flat", padx=4)
-        arg_label.grid(row=index + 1, column=1, padx=4, pady=2, sticky="w")
+        value_var = tk.StringVar(value=format_float(arg_value))
+        value_entry = self._entry(self._pos_frame, width=16)
+        value_entry.configure(textvariable=value_var)
+        value_entry.grid(row=index + 1, column=1, padx=4, pady=2, sticky="ew")
 
         name_var = tk.StringVar(value=name0)
         name_entry = self._entry(self._pos_frame, width=20)
@@ -1352,16 +1699,32 @@ class EntryDialog(tk.Toplevel):
         index_label = tk.Label(self._pos_frame, text=str(index + 1), bg=DARK_BG, fg=TEXT_SEC,
                                font=FONT_UI)
         index_label.grid(row=index + 1, column=0, padx=4)
-        self._pos_vars.append((arg_value, name_var))
+        self._pos_vars.append((value_var, name_var))
 
     def _render_position_rows(self, count, values, names):
-        headers = ["Pos", "Argument Value (auto)", "Position Name"]
+        headers = ["Pos", "Argument Value", "Position Name"]
         for col_index, header in enumerate(headers):
             tk.Label(self._pos_frame, text=header, bg=DARK_BG, fg=ACCENT, font=FONT_HEAD,
                      ).grid(row=0, column=col_index, sticky="w", padx=4, pady=(0, 4))
         for index in range(count):
             name0 = names[index] if index < len(names) else ""
             self._render_position_row(index, values[index], name0)
+
+    def _arrange_position_values(self):
+        params = self._read_position_params()
+        if params is None:
+            return
+        count, minimum, maximum = params
+        values = self._position_values(count, minimum, maximum, self._pos_reversed)
+        for index, (value_var, _name_var) in enumerate(self._pos_vars):
+            if index < len(values):
+                value_var.set(format_float(values[index]))
+
+    def _swap_position_names(self):
+        """Reverse the switch's position names while keeping the values in place."""
+        reversed_names = [name_var.get() for (_value_var, name_var) in self._pos_vars][::-1]
+        for (_value_var, name_var), new_name in zip(self._pos_vars, reversed_names):
+            name_var.set(new_name)
 
     def _build_positions(self, existing=None):
         self._pos_rebuild_after = None
@@ -1381,11 +1744,18 @@ class EntryDialog(tk.Toplevel):
             return
         count, minimum, maximum = params
 
-        # Generate the (ascending) argument values, assigned in reverse when the
-        # switch has been swapped; names stay put.
-        values = self._position_values(count, minimum, maximum, self._pos_reversed)
+        if existing:
+            points = existing.get("positions", [])
+            values = [format_float(position.get("argumentValue", "")) for position in points[:count]]
+            if len(values) < count:
+                values.extend(self._position_values(count, minimum, maximum, self._pos_reversed)[len(values):])
+        else:
+            # Generate the (ascending) argument values, assigned in reverse when the
+            # switch has been swapped; names stay put.
+            values = self._position_values(count, minimum, maximum, self._pos_reversed)
         names = self._position_names(existing, prior_names)
         self._render_position_rows(count, values, names)
+        self._auto_fit_dialog_to_content()
 
     def _swap_positions(self):
         """Reverse the switch's position values while keeping each entered name
@@ -1394,12 +1764,79 @@ class EntryDialog(tk.Toplevel):
         self._pos_reversed = not self._pos_reversed
         self._build_positions(None)
 
+    def _auto_arrange_positions(self):
+        """Evenly space the current position values without changing names."""
+        self._arrange_position_values()
+
+    @staticmethod
+    def _parse_float_or_none(value):
+        try:
+            text = str(value).strip()
+            if text == "":
+                return None
+            return float(text)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _calibration_values(count, minimum, maximum):
+        delta = ((maximum - minimum) / (count - 1)) if count > 1 else 0
+        values = [round(maximum if i == count - 1 else minimum + i * delta, 3)
+                  for i in range(count)]
+        return values
+
+    @staticmethod
+    def _calibration_field_default(existing, key, point_key, default, from_last=False):
+        calibration = (existing or {}).get("calibration", {})
+        if key in calibration:
+            return calibration.get(key, default)
+        points = calibration.get("points", [])
+        if not points:
+            points = (existing or {}).get("points", [])
+        if points:
+            point = points[-1] if from_last else points[0]
+            value = point.get(point_key, default)
+            if value not in (None, ""):
+                return value
+        return default
+
+    def _calibration_range_values(self):
+        def read(key, default):
+            var = self._vars.get(key)
+            value = self._parse_float_or_none(var.get()) if var is not None else None
+            return value if value is not None else default
+
+        return (
+            read("cal_minValue", 0.0),
+            read("cal_maxValue", 1.0),
+            read("cal_minMappedValue", 0.0),
+            read("cal_maxMappedValue", 1.0),
+        )
+
+    def _arrange_cal_points(self):
+        """Evenly space both calibration columns using the range fields."""
+        count = max(2, len(self._pt_vars))
+        minimum, maximum, mapped_minimum, mapped_maximum = self._calibration_range_values()
+        values = self._calibration_values(count, minimum, maximum)
+        mapped_values = self._calibration_values(count, mapped_minimum, mapped_maximum)
+        for index, (value_var, _mapped_var) in enumerate(self._pt_vars):
+            if index < len(values):
+                value_var.set(format_float(values[index]))
+        for index, (_value_var, mapped_var) in enumerate(self._pt_vars):
+            if index < len(mapped_values):
+                mapped_var.set(format_float(mapped_values[index]))
+
     def _swap_cal_points(self):
-        """Reverse the Value column of the calibration points while leaving each
-        entered Mapped Value in place."""
-        reversed_values = [value_var.get() for (value_var, _m) in self._pt_vars][::-1]
+        """Reverse the Value column while leaving the Mapped Value column in place."""
+        reversed_values = [value_var.get() for (value_var, _mapped_var) in self._pt_vars][::-1]
         for (value_var, _mapped_var), new_value in zip(self._pt_vars, reversed_values):
             value_var.set(new_value)
+
+    def _swap_cal_mapped_points(self):
+        """Reverse the Mapped Value column while leaving the Value column in place."""
+        reversed_values = [mapped_var.get() for (_value_var, mapped_var) in self._pt_vars][::-1]
+        for (_value_var, mapped_var), new_value in zip(self._pt_vars, reversed_values):
+            mapped_var.set(new_value)
 
     def _build_cal_points(self, existing=None):
         """Build N calibration-point rows (Value / Mapped Value), mirroring the
@@ -1423,35 +1860,62 @@ class EntryDialog(tk.Toplevel):
         self._pt_vars = []
 
         points = existing.get("calibration", {}).get("points", []) if existing else []
+        if existing and not points:
+            points = existing.get("points", [])
 
         headers = ["Pt", "Value", "Mapped Value"]
         for col_index, header in enumerate(headers):
             tk.Label(self._pt_frame, text=header, bg=DARK_BG, fg=ACCENT, font=FONT_HEAD,
                      ).grid(row=0, column=col_index, sticky="w", padx=4, pady=(0, 4))
 
-        for index in range(count):
-            if index < len(points):
-                value0 = points[index].get("value", "")
-                mapped0 = points[index].get("mappedValue", "")
-            elif index < len(current):
-                value0, mapped0 = current[index]
-            else:
-                value0, mapped0 = "", ""
+        if existing:
+            for index in range(count):
+                if index < len(points):
+                    value0 = points[index].get("value", "")
+                    mapped0 = points[index].get("mappedValue", "")
+                elif index < len(current):
+                    value0, mapped0 = current[index]
+                else:
+                    value0, mapped0 = "", ""
 
-            index_label = tk.Label(self._pt_frame, text=str(index + 1), bg=DARK_BG, fg=TEXT_SEC, font=FONT_UI)
-            index_label.grid(row=index + 1, column=0, padx=4)
+                index_label = tk.Label(self._pt_frame, text=str(index + 1), bg=DARK_BG, fg=TEXT_SEC, font=FONT_UI)
+                index_label.grid(row=index + 1, column=0, padx=4)
 
-            value_var = tk.StringVar(value=value0)
-            value_entry = self._entry(self._pt_frame, width=20)
-            value_entry.configure(textvariable=value_var)
-            value_entry.grid(row=index + 1, column=1, padx=4, pady=2, sticky="ew")
+                value_var = tk.StringVar(value=value0)
+                value_entry = self._entry(self._pt_frame, width=20)
+                value_entry.configure(textvariable=value_var)
+                value_entry.grid(row=index + 1, column=1, padx=4, pady=2, sticky="ew")
 
-            mapped_var = tk.StringVar(value=mapped0)
-            mapped_entry = self._entry(self._pt_frame, width=20)
-            mapped_entry.configure(textvariable=mapped_var)
-            mapped_entry.grid(row=index + 1, column=2, padx=4, pady=2, sticky="ew")
+                mapped_var = tk.StringVar(value=mapped0)
+                mapped_entry = self._entry(self._pt_frame, width=20)
+                mapped_entry.configure(textvariable=mapped_var)
+                mapped_entry.grid(row=index + 1, column=2, padx=4, pady=2, sticky="ew")
 
-            self._pt_vars.append((value_var, mapped_var))
+                self._pt_vars.append((value_var, mapped_var))
+        else:
+            minimum, maximum, mapped_minimum, mapped_maximum = self._calibration_range_values()
+            values = self._calibration_values(count, minimum, maximum)
+            mapped_values = self._calibration_values(count, mapped_minimum, mapped_maximum)
+            for index in range(count):
+                mapped0 = format_float(mapped_values[index])
+                value0 = format_float(values[index])
+
+                index_label = tk.Label(self._pt_frame, text=str(index + 1), bg=DARK_BG, fg=TEXT_SEC, font=FONT_UI)
+                index_label.grid(row=index + 1, column=0, padx=4)
+
+                value_var = tk.StringVar(value=value0)
+                value_entry = self._entry(self._pt_frame, width=20)
+                value_entry.configure(textvariable=value_var)
+                value_entry.grid(row=index + 1, column=1, padx=4, pady=2, sticky="ew")
+
+                mapped_var = tk.StringVar(value=mapped0)
+                mapped_entry = self._entry(self._pt_frame, width=20)
+                mapped_entry.configure(textvariable=mapped_var)
+                mapped_entry.grid(row=index + 1, column=2, padx=4, pady=2, sticky="ew")
+
+                self._pt_vars.append((value_var, mapped_var))
+
+        self._auto_fit_dialog_to_content()
 
     @staticmethod
     def _check_id_value(value, label, required):
@@ -1484,6 +1948,19 @@ class EntryDialog(tk.Toplevel):
         for key, label in (("id", "Export ID(Arg)"), ("device", "Device"), ("name", "Name")):
             if not values.get(key, ""):
                 return f"{label} is required."
+        return None
+
+    def _validate_type_specific_fields(self, values):
+        """Validate fields that apply only to one helios type."""
+        if self.helios_type != DCS_LEADER + "ScaledNetworkValue":
+            return None
+        text = values.get("cal_precision", "").strip()
+        if not text:
+            return "Precision is required and must be a positive integer."
+        if not text.lstrip("+").isdigit():
+            return "Precision must be a positive integer."
+        if int(text) <= 0:
+            return "Precision must be a positive integer."
         return None
 
     def _is_edit_index(self, index):
@@ -1565,7 +2042,13 @@ class EntryDialog(tk.Toplevel):
     def _save_scaled(self, entry, values):
         self._save_network(entry, values)  # identical export-format handling
         entry["unit"] = self._unit_var.get().strip() or "Numeric"
+        entry["valueDescription"] = values.get("valueDescription", "")
         entry["exposeunscaledvalue"] = bool(self._expose_unscaled_var.get())
+        entry["calibration"]["minValue"] = format_float(values.get("cal_minValue", "0.0"))
+        entry["calibration"]["maxValue"] = format_float(values.get("cal_maxValue", "1.0"))
+        entry["calibration"]["minMappedValue"] = format_float(values.get("cal_minMappedValue", "0.0"))
+        entry["calibration"]["maxMappedValue"] = format_float(values.get("cal_maxMappedValue", "1.0"))
+        entry["calibration"]["precision"] = int(values.get("cal_precision", "5").strip().lstrip("+"))
         entry["calibration"]["points"] = [
             {"value": value_var.get().strip(), "mappedValue": mapped_var.get().strip()}
             for (value_var, mapped_var) in self._pt_vars
@@ -1581,26 +2064,18 @@ class EntryDialog(tk.Toplevel):
         entry["deviceId"] = to_int(values.get("deviceId", ""))
         shared_action = to_int(values.get("switch_actionId", ""))
         entry["positions"] = [
-            {"argumentValue": format_float(arg_value),
+            {"argumentValue": format_float(value_var.get().strip()),
              "name": name_var.get().strip(),
              "actionId": shared_action}
-            for (arg_value, name_var) in self._pos_vars
+            for (value_var, name_var) in self._pos_vars
         ]
 
     def _populate_entry_fields(self, helios_type, entry, values):
         """Fill the type-specific fields of a freshly built entry from the form
         values, dispatched by helios type."""
-        savers = {
-            DCS_LEADER + "PushButton":         self._save_pushbutton,
-            DCS_LEADER + "Axis":               self._save_axis,
-            DCS_LEADER + "NetworkValue":       self._save_network,
-            DCS_LEADER + "ScaledNetworkValue": self._save_scaled,
-            DCS_LEADER + "RotaryEncoder":      self._save_rotary,
-            DCS_LEADER + "Switch":             self._save_switch,
-        }
-        saver = savers.get(helios_type)
-        if saver:
-            saver(entry, values)
+        saver_name = ENTRY_FIELD_SAVER_NAMES.get(helios_type)
+        if saver_name:
+            getattr(self, saver_name)(entry, values)
 
     def _save(self):
         values = {key: var.get().strip() for key, var in self._vars.items()}
@@ -1613,6 +2088,10 @@ class EntryDialog(tk.Toplevel):
         id_error = self._validate_id_fields(values)
         if id_error:
             messagebox.showerror("Invalid ID", id_error, parent=self)
+            return
+        type_error = self._validate_type_specific_fields(values)
+        if type_error:
+            messagebox.showerror("Invalid Value", type_error, parent=self)
             return
 
         export_id = values.get("id", "")
@@ -1649,6 +2128,7 @@ class ChangeTypeDialog(tk.Toplevel):
 
     def __init__(self, parent, entry, count=1):
         super().__init__(parent)
+        self.transient(parent)
         self.title("Change Helios Type")
         self.configure(bg=DARK_BG)
         self.resizable(False, False)
@@ -1714,8 +2194,8 @@ class ChangeTypeDialog(tk.Toplevel):
 
         self.update_idletasks()
         win_w, win_h = self.winfo_reqwidth(), self.winfo_reqheight()
-        screen_w, screen_h = self.winfo_screenwidth(), self.winfo_screenheight()
-        self.geometry(f"{win_w}x{win_h}+{(screen_w - win_w) // 2}+{(screen_h - win_h) // 2}")
+        pos_x, pos_y = centered_position_on_parent(parent, win_w, win_h)
+        self.geometry(f"{win_w}x{win_h}+{pos_x}+{pos_y}")
 
     def _confirm(self):
         new_type = self.LABEL_TO_TYPE.get(self._label_var.get())
@@ -1811,8 +2291,11 @@ class HeliosEditor(tk.Tk):
 
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
-        win_w = max(900, (screen_w * 33) // 80)
-        win_h = max(700, (screen_h * 3) // 4)
+        startup_scale = 0.8  # Open 20% smaller than the previous default size.
+        base_w = max(900, (screen_w * 33) // 80)
+        base_h = max(700, (screen_h * 3) // 4)
+        win_w = int(base_w * startup_scale)
+        win_h = int(base_h * startup_scale)
         pos_x = max(0, (screen_w - win_w) // 2)
         pos_y = max(0, (screen_h - win_h) // 2)
         self.geometry(f"{win_w}x{win_h}+{pos_x}+{pos_y}")
@@ -2587,7 +3070,8 @@ class HeliosEditor(tk.Tk):
         messagebox.showinfo(
             "Set Descriptions",
             f"Updated {changed} description"
-            f"{'s' if changed != 1 else ''} by helios type.")
+            f"{'s' if changed != 1 else ''} by helios type.",
+            parent=self)
 
     @staticmethod
     def _ensure_export_id(function, new_id):
@@ -2608,11 +3092,10 @@ class HeliosEditor(tk.Tk):
         function["exports"] = [new_export]
         return True
 
-    @staticmethod
-    def _show_autofill_result(assigned):
+    def _show_autofill_result(self, assigned):
         plural = "s" if assigned != 1 else ""
         tail = "" if assigned else " Every device already has one."
-        messagebox.showinfo("Auto-fill IDs", f"Assigned {assigned} new ID{plural}.{tail}")
+        messagebox.showinfo("Auto-fill IDs", f"Assigned {assigned} new ID{plural}.{tail}", parent=self)
 
     def _auto_fill_ids(self):
         """Assign an Export ID(Arg) to every device that doesn't already have one,
@@ -2657,7 +3140,6 @@ class HeliosEditor(tk.Tk):
             # whole list, so refresh all tabs to rebuild their row indices.
             self._sort_functions()
             self._refresh_all()
-            self._update_max_id()
 
     def _edit_entry(self, helios_type):
         tree = self._trees[helios_type]
@@ -2685,8 +3167,7 @@ class HeliosEditor(tk.Tk):
             self._next_saved_session_index += 1
             self._last_saved_function = dialog.result
             self._data["functions"][function_index] = dialog.result
-            self._refresh_tab(helios_type)
-            self._update_max_id()
+            self._refresh_all()
 
     @staticmethod
     def _selected_indices(tree):
@@ -2719,7 +3200,6 @@ class HeliosEditor(tk.Tk):
                 self._data["functions"].pop(index)
             # Removal renumbers every function, so rebuild all tabs.
             self._refresh_all()
-            self._update_max_id()
 
     def _ask_new_type(self, indices):
         """Prompt for the destination type for the selected rows; returns the
@@ -2808,7 +3288,6 @@ class HeliosEditor(tk.Tk):
         # The rows leave the old tab and appear in the new type's tab.
         self._refresh_tab(helios_type)
         self._refresh_tab(new_type)
-        self._update_max_id()
         # Surface the converted entries where the user can see them.
         self._select_tab(new_type)
         self._select_functions(new_type, indices)
@@ -3010,7 +3489,8 @@ class HeliosEditor(tk.Tk):
             return
         path = filedialog.askopenfilename(
             title="Open JSON Profile",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")])
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            parent=self)
         if not path:
             return
         try:
@@ -3036,7 +3516,7 @@ class HeliosEditor(tk.Tk):
             # A just-opened profile is the new clean baseline.
             self._mark_clean()
         except Exception as error:
-            messagebox.showerror("Open Failed", str(error))
+            messagebox.showerror("Open Failed", str(error), parent=self)
 
     # ── DCS Lua import ───────────────────────────────────────────────────────────
     # def _import_dcs_folder(self):
@@ -3091,7 +3571,8 @@ class HeliosEditor(tk.Tk):
             "Do you want to import into a NEW profile?\n\n"
             "Yes  = start a new profile (the current data is cleared)\n"
             "No   = add the imported set to the current profile\n"
-            "Cancel = abort import")
+            "Cancel = abort import",
+            parent=self)
         if choice is None:
             return False
         if choice:
@@ -3148,7 +3629,8 @@ class HeliosEditor(tk.Tk):
             messagebox.showwarning(
                 "Nothing imported",
                 "The compiler ran but produced no functions.\n\n"
-                + ("\n".join(result.warnings[:8]) if result.warnings else ""))
+                + ("\n".join(result.warnings[:8]) if result.warnings else ""),
+                parent=self)
             return
 
         if not self._apply_import_merge(functions, source):
@@ -3158,7 +3640,8 @@ class HeliosEditor(tk.Tk):
         self._sort_functions()
         self._refresh_all()
         messagebox.showinfo("DCS Lua Import",
-                            "\n".join(self._import_summary_lines(functions, result)))
+                            "\n".join(self._import_summary_lines(functions, result)),
+                            parent=self)
 
     def _save(self):
         if not self._current_file:
@@ -3178,7 +3661,8 @@ class HeliosEditor(tk.Tk):
         path = filedialog.asksaveasfilename(
             title="Save JSON Profile",
             defaultextension=".json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")])
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            parent=self)
         if not path:
             return
         self._current_file = path
@@ -3204,6 +3688,7 @@ class HeliosEditor(tk.Tk):
         """Modal prompt: how should functions be ordered in the saved file?
         Returns the chosen method key, or None if the user cancels."""
         dialog = tk.Toplevel(self)
+        dialog.transient(self)
         dialog.title("Save — Sort Order")
         dialog.configure(bg=DARK_BG)
         dialog.resizable(False, False)
@@ -3236,8 +3721,8 @@ class HeliosEditor(tk.Tk):
 
         dialog.update_idletasks()
         width, height = dialog.winfo_reqwidth(), dialog.winfo_reqheight()
-        screen_w, screen_h = dialog.winfo_screenwidth(), dialog.winfo_screenheight()
-        dialog.geometry(f"+{(screen_w - width) // 2}+{(screen_h - height) // 2}")
+        pos_x, pos_y = centered_position_on_parent(self, width, height)
+        dialog.geometry(f"+{pos_x}+{pos_y}")
 
         self.wait_window(dialog)
         return result["method"]
@@ -3260,6 +3745,7 @@ class HeliosEditor(tk.Tk):
             function["device"] = prettify_label(function.get("device", ""))
             function["name"] = prettify_label(function.get("name", ""))
             normalize_special_floats(function)
+            normalize_scaled_for_export(function)
 
         # Order by whichever method is active (device/action, or device-name then
         # name) — the same ordering the Full View shows.
@@ -3291,9 +3777,9 @@ class HeliosEditor(tk.Tk):
                 json.dump(out, handle, indent=2)
             # A successful save makes the current state the clean baseline.
             self._mark_clean()
-            messagebox.showinfo("Saved", f"File saved:\n{path}")
+            messagebox.showinfo("Saved", f"File saved:\n{path}", parent=self)
         except Exception as error:
-            messagebox.showerror("Save Failed", str(error))
+            messagebox.showerror("Save Failed", str(error), parent=self)
 
 
 if __name__ == "__main__":
